@@ -22,32 +22,22 @@ let upload = multer({ storage, limits: { fileSize: 1000000 * 100 } }).single(
 ); //100mb size max and name attribute from frontend form should be named 'myfile
 
 router.post("/", (req, res) => {
-  //Storing file
-
-  try {
-    upload(req, res, async (err) => {
-      //Validating Files
-      if (!req.file) {
-        res.json({ error: "All fields are required" });
-      }
-  
-      //Store in Database
-  
-      const file = new File({
-        filename: req.file.filename,
-        uuid: uuid4(),
-        path: req.file.path,
-        size: req.file.size,
-      });
-  
-      const response = await file.save();
-      return res.json({
-        file: `${req.protocol}://${req.get("host")}/files/${response.uuid}`,
-      });
-    });
-  } catch (err) {
-          res.status(500).json({ error: err.message });
+  if(!req.file){
+    return res.json({error:"Please select a file"});
   }
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(500).send({ error: err.message });
+    }
+      const file = new File({
+          filename: req.file.filename,
+          uuid: uuid4(),
+          path: req.file.path,
+          size: req.file.size
+      });
+      const response = await file.save();
+      res.json({ file: `${req.protocol}://${req.get("host")}/files/${response.uuid}` });
+    });
 });
 
 router.post("/send", async (req, res) => {
