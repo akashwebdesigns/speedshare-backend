@@ -19,16 +19,21 @@ let storage = multer.diskStorage({
 
 let upload = multer({ storage, limits: { fileSize: 1000000 * 100 } }).single(
   "myfile"
-); //100mb size max and name attribute from frontend form should be named 'myfile
+); //100mb size max and name attribute from frontend form should be named 'myfile'
 
 router.post("/", (req, res) => {
-  if(!req.file){
-    return res.json({error:"Please select a file"});
-  }
+
   upload(req, res, async (err) => {
-    if (err) {
-      return res.status(500).send({ error: err.message });
+    console.log(req.file);
+
+    if(err){
+      console.log(err);
     }
+
+    if(!req.file){
+      return res.json({error:"Pleasse select a file"});
+    }
+
       const file = new File({
           filename: req.file.filename,
           uuid: uuid4(),
@@ -40,40 +45,41 @@ router.post("/", (req, res) => {
     });
 });
 
-router.post("/send", async (req, res) => {
+
+router.post('/send', async (req, res) => {
   const { uuid, emailTo, emailFrom } = req.body;
-  if (!uuid || !emailTo || !emailFrom) {
-    return res
-      .status(422)
-      .send({ error: "All fields are required except expiry." });
+  if(!uuid || !emailTo || !emailFrom) {
+      return res.status(422).send({ error: 'All fields are required except expiry.'});
   }
-  // Get data from db
   try {
     const file = await File.findOne({ uuid: uuid });
-    if (file.sender) {
-      return res.status(422).send({ error: "Email already sent once." });
+    if(file.sender) {
+      return res.status(422).send({ error: 'Email already sent once.'});
     }
     file.sender = emailFrom;
     file.receiver = emailTo;
     const response = await file.save();
     // send mail
-    await sendEmail({
+    const sendMail = require('../services/mailService');
+    sendMail({
       from: emailFrom,
       to: emailTo,
-      subject: "SpeedShare file sharing",
+      subject: 'SpeedShare file sharing',
       text: `${emailFrom} shared a file with you.`,
-      html: require("../services/emailTemplate.js")({
-        emailFrom,
-        downloadLink: `${req.protocol}://${req.get("host")}/files/${file.uuid}`,
-        size: parseInt(file.size / 1000) + " KB",
-        expires: "24 hours",
-      }),
+      html: require('../services/emailTemplate')({
+                emailFrom, 
+                downloadLink: `${req.protocol}://${req.get("host")}/files/${file.uuid}` ,
+                size: parseInt(file.size/1000) + ' KB',
+                expires: '24 hours'
+            })
+    }).then(() => {
+      return res.json({success: true});
+    }).catch(err => {
+      return res.status(500).json({error: 'Error in email sending.'});
     });
-    res.status(200).json({ success: true, message: "Email Sent" });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).send({ error: "Something went wrong." });
-  }
+} catch(err) {
+  return res.status(500).send({ error: 'Something went wrong.'});
+}
 });
 
 module.exports = router;
